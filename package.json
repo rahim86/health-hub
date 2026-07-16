@@ -1,5 +1,5 @@
 {
-  "name": "family-health-hub",
+  "name": "health-hub",
   "version": "0.1.0",
   "private": true,
   "description": "Personal family health data aggregator via SMART on FHIR",
