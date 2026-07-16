@@ -1,6 +1,6 @@
 # Family Health Hub
 
-A personal family health data aggregator that connects to Epic and Oracle Health via **SMART on FHIR** standalone launch. OAuth tokens are handled by this Express app; all clinical FHIR data is stored in a self-hosted **Medplum** FHIR server running in Docker.
+A personal family health data aggregator that connects to Epic and Oracle Health via **SMART on FHIR** standalone launch. This Express app handles the OAuth flow; all application state — family members, EHR connection tokens, and clinical FHIR data — is stored in a self-hosted **Medplum** FHIR server running in Docker. There is no local database.
 
 ## Architecture
 
@@ -12,8 +12,7 @@ Browser
   │
   └─ GET /callback?code=...&state=...
           └─ fhirclient token exchange
-                  ├─ tokens → SQLite (token cache)
-                  └─ FHIR resources → Medplum FHIR API (:8103)
+                  └─ FHIR resources + EHR tokens → Medplum FHIR API (:8103)
 
 Dashboard (http://localhost:4000)
   └─ /api/patients  ←── reads Patient + summary counts from Medplum
@@ -32,19 +31,21 @@ Dashboard (http://localhost:4000)
 | File | Purpose |
 |------|---------|
 | `src/config.ts` | `ProviderConfig[]` for Epic / Oracle sandbox + `APP_CONFIG` from env |
-| `src/types.ts` | TypeScript interfaces: FHIR R4 shapes, `NormalizedRecord` |
-| `src/ehr-connect.ts` | SMART App Launch v2 via `fhirclient`: build auth URL, exchange code for token |
+| `src/types.ts` | TypeScript interfaces: SMART discovery/token types, FHIR R4 resource shapes |
+| `src/ehr-connect.ts` | SMART App Launch via `fhirclient`: build auth URL, exchange code for token, write results to Medplum |
 | `src/fhir-client.ts` | Paginated FHIR R4 fetchers, `syncPatientData()` |
 | `src/medplum-client.ts` | Singleton `MedplumClient`, all read/write helpers against Medplum FHIR API |
-| `src/store.ts` | SQLite via `better-sqlite3` — `family_members` + `provider_connections` tables |
 | `src/server.ts` | Express routes + inline dashboard HTML |
 
-### Data split
+(`src/smart-client.ts` is an older, unused hand-rolled SMART/PKCE implementation — nothing imports it. The live OAuth flow runs through `src/ehr-connect.ts` and the `fhirclient` library.)
 
-- **SQLite** — local member UUIDs and EHR OAuth tokens (per-member, per-provider)
-- **Medplum** — all FHIR resources (Patient, Condition, Observation, MedicationRequest, Encounter, AllergyIntolerance, Immunization, Procedure) and EHR connection metadata (`Basic` resources)
+### Data model
 
-Patient resources in Medplum carry an identifier with system `https://familyhealthhub.local/members` whose value is the local member UUID — this is the join key between the two stores.
+Everything lives in Medplum:
+
+- **`Patient`** resources for each family member, carrying an identifier on system `https://familyhealthhub.local/members` whose value is the local member UUID — the join key used to look up a member's Medplum patient.
+- **`Basic`** resources (one per member/provider pair) hold each EHR connection's access/refresh token and expiry, tagged on system `https://familyhealthhub.local/token`.
+- Clinical resources (Condition, Observation, MedicationRequest, Encounter, AllergyIntolerance, Immunization, Procedure) are tagged with `meta.tag` on system `https://familyhealthhub.local/source` recording which EHR they were synced from.
 
 ## Prerequisites
 
@@ -104,15 +105,20 @@ SESSION_SECRET=<random string, e.g. openssl rand -hex 32>
 
 | Method | Path | Description |
 |--------|------|-------------|
+| `GET` | `/health` | Health check |
 | `GET` | `/` | Dashboard (inline HTML) |
 | `GET` | `/api/patients` | All patients from Medplum with clinical summary counts and EHR connection state |
 | `GET` | `/api/patients/:id/records` | All FHIR records for a Medplum patient ID |
+| `DELETE` | `/api/patients/:id/records/:resourceType/:resourceId` | Delete a single record and disconnect its source EHR connection |
+| `DELETE` | `/api/patients/:id` | Delete a patient: all records, all EHR connections, and the Patient resource itself (irreversible) |
 | `GET` | `/api/providers` | Configured EHR providers |
 | `GET` | `/connect/:providerId?member=UUID` | Start SMART OAuth flow |
 | `GET` | `/callback` | OAuth callback — token exchange + FHIR sync to Medplum |
 | `POST` | `/api/sync/:memberId` | Re-sync all EHR connections for a member using stored tokens |
-| `GET` | `/api/members` | SQLite-backed member list with Medplum summary counts |
-| `POST` | `/api/members` | Create a new member (SQLite + Medplum Patient) |
+| `GET` | `/api/members` | Medplum-backed member list with summary counts |
+| `POST` | `/api/members` | Create a new member (Medplum Patient) |
+| `GET` | `/api/members/:id/data` | FHIR resources for a member, optionally filtered by `?type=` |
+| `GET` | `/api/members/:id/labs?loinc=CODE` | Lab result trend for a given LOINC code |
 
 ## Usage
 
