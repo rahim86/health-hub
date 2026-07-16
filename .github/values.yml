@@ -1,0 +1,17 @@
+app:
+  port: 3004                    # host port the container is published on
+  redirect_uri: https://wellnest.uyir.tech/callback   # this app's own public OAuth callback URL
+  session_secret: 9dFam7Kr1nRpDIvZMsUBB3oNNnwSTrH5MO/BpZ72da4=    # express-session signing secret - random string - openssl rand -base64 32
+
+medplum:
+  # This is the Medplum API domain from ../fhir-server
+  # (docker-compose-medplum.yml's API_DOMAIN), NOT fhir.uyir.tech itself
+  # -- that domain serves the Medplum web UI, not the API.
+  base_url: https://api.fhir.uyir.tech/
+  client_id: 9cf97518-4f55-43af-bc13-0148360cbb8d         # Medplum Client Application ID
+  client_secret: 90ad2fdf831da8308ad7b883f5c6d1573acfa4881eb2fe2a03ecd951d19af501     # Medplum Client Application secret
+
+ehr:
+  epic_client_id: f5b98cae-b652-48dc-8e85-d94c9f956bd6
+  oracle_client_id: 4c365d03-b23c-49de-8227-39b4641b6229
+  meditech_client_id: your-meditech-client-id-here
