@@ -12,6 +12,6 @@ medplum:
   client_secret: 90ad2fdf831da8308ad7b883f5c6d1573acfa4881eb2fe2a03ecd951d19af501     # Medplum Client Application secret
 
 ehr:
-  epic_client_id: f5b98cae-b652-48dc-8e85-d94c9f956bd6
+  epic_client_id: ebfdcaf3-fa32-4d02-99a0-be79502593cd
   oracle_client_id: 4c365d03-b23c-49de-8227-39b4641b6229
   meditech_client_id: your-meditech-client-id-here
