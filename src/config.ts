@@ -35,7 +35,7 @@ const PATIENT_SCOPES = [
   "patient/Immunization.read",       // vaccines
   "patient/Procedure.read",          // procedures
   "patient/DocumentReference.read",  // visit summaries, C-CDAs
-  "offline_access",                  // refresh token (not all EHRs honor this)
+  //"offline_access",                  // refresh token (not all EHRs honor this)
 ];
 
 // ---- SANDBOX configurations (for development) ----
