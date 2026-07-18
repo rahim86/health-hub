@@ -36,7 +36,8 @@ import {
 // a trailing slash on Endpoint.address. Strip it so base + resourcePath
 // concatenation never produces a double slash.
 export function normalizeBaseUrl(url: string): string {
-  return url.replace(/\/$/, "");
+  //return url.replace(/\/$/, "");
+  return url;
 }
 
 class FhirForbiddenError extends Error {
