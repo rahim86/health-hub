@@ -59,6 +59,23 @@ Synced clinical resources (Condition, Observation, MedicationRequest, etc.) are 
 
 `handleCallback()` also fetches the patient's demographics before creating anything in Medplum, so a brand-new family member is created with their real name/DOB/gender from the EHR rather than a placeholder (see `extractDemographics()`).
 
+### API routes
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET` | `/api/patients` | All patients with clinical summary counts + EHR connection state |
+| `GET` | `/api/patients/:id/records` | All FHIR records for a Medplum patient ID |
+| `DELETE` | `/api/patients/:id/records/:resourceType/:resourceId` | Deletes one record, also disconnects its source EHR connection |
+| `DELETE` | `/api/patients/:id` | Deletes patient + all records + all EHR connections (irreversible) |
+| `GET` | `/connect/:providerId?member=UUID` | Start SMART OAuth flow |
+| `GET` | `/callback` | OAuth callback — token exchange + FHIR sync to Medplum |
+| `POST` | `/api/sync/:memberId` | Re-sync all EHR connections for a member using stored tokens |
+| `GET`/`POST` | `/api/members` | Medplum-backed member list / create a new member (Patient) |
+| `GET` | `/api/members/:id/data?type=` | FHIR resources for a member, optionally filtered by type |
+| `GET` | `/api/members/:id/labs?loinc=CODE` | Lab result trend for a given LOINC code |
+
+Full descriptions in [README.md](README.md#api-routes).
+
 ### Adding a new EHR provider
 
 1. Add a `ProviderConfig` entry in `src/config.ts` with `id`, `name`, `fhir_base_url`, and `client_id`

@@ -14,6 +14,7 @@ import 'dotenv/config'; // load .env before any other imports read process.env
 //   GET  /callback             → OAuth callback (fhirclient token exchange)
 //   POST /api/sync/:memberId   → Re-sync all EHR connections → Medplum
 //   GET  /api/providers        → List configured EHR providers
+//   GET  /api/epic-endpoints   → Epic hospital FHIR endpoint directory (for the hospital picker)
 //   GET  /api/patients         → All Medplum patients with clinical summaries
 //   GET  /api/patients/:id/records → FHIR records for a Medplum patient
 //   DELETE /api/patients/:id/records/:resourceType/:resourceId → Delete a
@@ -32,6 +33,7 @@ import { v4 as uuidv4 } from "uuid";
 import { APP_CONFIG, PROVIDERS } from "./config";
 import { startConnect, handleCallback } from "./ehr-connect";
 import { syncPatientData } from "./fhir-client";
+import { EPIC_ENDPOINTS } from "./epic-endpoints";
 import {
   initMedplum,
   getOrCreateMedplumPatient,
@@ -200,6 +202,12 @@ app.get("/api/providers", (_req, res) => {
   res.json(
     PROVIDERS.map((p) => ({ id: p.id, name: p.name, fhir_base_url: p.fhir_base_url }))
   );
+});
+
+// Epic's per-hospital FHIR endpoint directory (epic-endpoints-R4.json), used
+// to populate the hospital picker next to "Connect via Epic" on the dashboard.
+app.get("/api/epic-endpoints", (_req, res) => {
+  res.json(EPIC_ENDPOINTS);
 });
 
 // ---- Medplum patient roster ----
@@ -377,7 +385,12 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   <script>
     let allPatients = [];
     let providers = [];
+    let epicEndpoints = [];
     const recordsCache = {};
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
 
     (function showConnectedBanner() {
       const params = new URLSearchParams(window.location.search);
@@ -394,9 +407,29 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
         el.innerHTML = '<span class="meta">No EHR providers configured.</span>';
         return;
       }
-      el.innerHTML = providers.map(pv =>
+
+      const sandboxRow = providers.map(pv =>
         '<a class="btn btn-primary" href="/connect/' + pv.id + '">Connect via ' + pv.name + '</a>'
       ).join('');
+
+      const epicProvider = providers.find(pv => pv.id.indexOf('epic') === 0);
+      let pickerRow = '';
+      if (epicProvider && epicEndpoints.length) {
+        const options = epicEndpoints.map(ep =>
+          '<option value="' + escapeHtml(ep.address) + '">' + escapeHtml(ep.name) + '</option>'
+        ).join('');
+        pickerRow = '<div style="display:flex;gap:8px;align-items:center;width:100%;margin-top:10px">'
+          + '<select id="epic-endpoint-select" class="btn btn-sm">' + options + '</select>'
+          + '<button class="btn btn-primary" onclick="connectEpic(\\'' + epicProvider.id + '\\')">Connect via Epic</button>'
+          + '</div>';
+      }
+
+      el.innerHTML = sandboxRow + pickerRow;
+    }
+
+    function connectEpic(providerId) {
+      const sel = document.getElementById('epic-endpoint-select');
+      window.location.href = '/connect/' + providerId + '?fhir_base_url=' + encodeURIComponent(sel.value);
     }
 
     const TABS = [
@@ -412,9 +445,10 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       const el = document.getElementById('patients');
       el.innerHTML = '<div class="empty">Loading patients from Medplum…</div>';
       try {
-        [allPatients, providers] = await Promise.all([
+        [allPatients, providers, epicEndpoints] = await Promise.all([
           fetch('/api/patients').then(r => r.json()),
           fetch('/api/providers').then(r => r.json()),
+          fetch('/api/epic-endpoints').then(r => r.json()),
         ]);
         renderConnectProviders();
         render(allPatients);
@@ -455,7 +489,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
         const s = p.summary || {};
         const total = (s.conditions||0)+(s.medications||0)+(s.observations||0)+(s.encounters||0)+(s.allergies||0)+(s.immunizations||0);
         const connectedIds = (p.connections || []).map(c => c.provider_id);
-        const available = p.memberId ? providers.filter(pv => !connectedIds.includes(pv.id)) : [];
+        const available = p.memberId ? providers.filter(pv => !connectedIds.includes(pv.id) && pv.id.indexOf('oracle') !== 0) : [];
         const connected = providers.filter(pv => connectedIds.includes(pv.id));
         const tabsHtml = TABS.map(t =>
           '<div class="tab" id="tab-' + p.id + '-' + t.type + '" onclick="selectTab(\\'' + p.id + '\\',\\'' + t.type + '\\')">'

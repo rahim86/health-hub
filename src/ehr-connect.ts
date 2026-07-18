@@ -17,6 +17,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import type { Request, Response } from 'express';
 import { PROVIDERS, APP_CONFIG } from './config';
 import { syncPatientData } from './fhir-client';
+import { findEpicEndpoint } from './epic-endpoints';
 import {
   getOrCreateMedplumPatient,
   syncResourcesToMedplum,
@@ -28,6 +29,9 @@ import type { FhirPatient } from './types';
 // Step 1: redirect user to EHR login.
 // Called by GET /connect/:providerId              → SSO for a brand-new patient
 //        or GET /connect/:providerId?member=UUID   → link another provider to an existing patient
+//        or GET /connect/:providerId?fhir_base_url=... → Epic only: use a specific
+//           hospital's FHIR endpoint (from the epic-endpoints-R4.json directory)
+//           instead of the EPIC_SANDBOX default
 export async function startConnect(req: Request, res: Response): Promise<void> {
   const providerId = (req.params.providerId ?? req.query.providerId) as string;
   // No member param means "connect a new patient" — the local member ID is
@@ -38,14 +42,27 @@ export async function startConnect(req: Request, res: Response): Promise<void> {
   const provider = PROVIDERS.find(p => p.id === providerId);
   if (!provider) throw new Error(`Unknown provider: ${providerId}`);
 
+  // Only Epic supports the hospital picker — the override must match a known
+  // entry from the endpoint directory, otherwise the ?fhir_base_url= query
+  // param would let a caller redirect the SMART discovery/authorize flow to
+  // an arbitrary URL.
+  const requestedBaseUrl = req.query.fhir_base_url as string | undefined;
+  let fhirBaseUrl = provider.fhir_base_url;
+  if (requestedBaseUrl && provider.id.startsWith('epic')) {
+    const endpoint = findEpicEndpoint(requestedBaseUrl);
+    if (!endpoint) throw new Error('Unknown Epic FHIR endpoint');
+    fhirBaseUrl = endpoint.address;
+  }
+
   req.session.pendingMemberId = memberId;
   req.session.pendingProvider = providerId;
+  req.session.pendingFhirBaseUrl = fhirBaseUrl;
 
   // fhirclient discovers .well-known/smart-configuration from the FHIR base URL,
   // generates a PKCE code_verifier + challenge, stores them in the session,
   // and redirects the browser to the EHR's authorization_endpoint.
   await FHIR(req as unknown as IncomingMessage, res as unknown as ServerResponse).authorize({
-    iss: provider.fhir_base_url,
+    iss: fhirBaseUrl,
     clientId: provider.client_id,
     scope: provider.scopes.join(' '),
     redirectUri: APP_CONFIG.redirect_uri,
@@ -74,11 +91,14 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
   const memberId = req.session.pendingMemberId!;
   const providerId = req.session.pendingProvider!;
   const provider = PROVIDERS.find(p => p.id === providerId)!;
+  // Set in startConnect — for Epic this may be a specific hospital's FHIR
+  // endpoint from the directory rather than provider.fhir_base_url.
+  const fhirBaseUrl = req.session.pendingFhirBaseUrl || provider.fhir_base_url;
 
   // Fetch the patient's demographics + all clinical resources from the EHR
   // before touching Medplum, so a brand-new patient is created with their
   // real name/DOB/gender rather than a placeholder.
-  const data = await syncPatientData(provider.fhir_base_url, ehrPatientId, token.access_token);
+  const data = await syncPatientData(fhirBaseUrl, ehrPatientId, token.access_token);
   const demographics = extractDemographics(data.patient, memberId);
 
   console.log(`\n  OAuth success: patient="${demographics.name}" provider="${provider.name}" ehr_patient="${ehrPatientId}"`);
@@ -87,7 +107,7 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
 
   await upsertConnectionInMedplum(medplumPatientId, {
     provider_id: providerId,
-    fhir_base_url: provider.fhir_base_url,
+    fhir_base_url: fhirBaseUrl,
     ehr_patient_id: ehrPatientId,
     access_token: token.access_token,
     refresh_token: token.refresh_token,

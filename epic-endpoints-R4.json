@@ -1,0 +1,220 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "timestamp": "2026-07-16T20:59:32.343331-05:00",
+  "total": 480,
+  "entry": [
+    {
+        "resource": {
+            "resourceType": "Endpoint",
+            "id": "db2fa901-5dc5-eb11-913d-001dd8b71f1a",
+            "contained": [
+            {
+                "resourceType": "Organization",
+                "id": "aK2s2GGueHDKmQ+pk5PZfryeDYOiXvruiBm9iP+fndc=",
+                "name": "Pediatric Physicians Organization at Children's"
+            }
+            ],
+            "status": "active",
+            "connectionType": {
+            "system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+            "code": "hl7-fhir-rest"
+            },
+            "name": "Pediatric Physicians Organization at Children's",
+            "managingOrganization": {
+            "reference": "aK2s2GGueHDKmQ+pk5PZfryeDYOiXvruiBm9iP+fndc="
+            },
+            "period": {
+            "start": "2024-11-08T00:00:00-06:00"
+            },
+            "payloadType": [
+            {
+                "coding": [
+                {
+                    "system": "http://hl7.org/fhir/us/davinci-pdex-plan-net/CodeSystem/EndpointPayloadTypeCS",
+                    "code": "NA"
+                }
+                ]
+            }
+            ],
+            "payloadMimeType": [
+            "application/fhir+json",
+            "application/json+fhir",
+            "application/xml+fhir",
+            "application/fhir+xml"
+            ],
+            "address": "https://fhir.chppoc.org/Fhir-External/api/FHIR/R4/"
+        }
+        },
+
+
+        {
+        "resource": {
+            "resourceType": "Endpoint",
+            "id": "90fbcb0e-64d0-ec11-9155-001dd8b71f1a",
+            "contained": [
+            {
+                "resourceType": "Organization",
+                "id": "Upe93j8g+8wnnwDs9roFGjrO7G88Gc3mPHsHLdvtR5E=",
+                "name": "CVS Health & Minute Clinic"
+            }
+            ],
+            "status": "active",
+            "connectionType": {
+            "system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+            "code": "hl7-fhir-rest"
+            },
+            "name": "CVS Health & Minute Clinic",
+            "managingOrganization": {
+            "reference": "Upe93j8g+8wnnwDs9roFGjrO7G88Gc3mPHsHLdvtR5E="
+            },
+            "period": {
+            "start": "2024-11-08T00:00:00-06:00"
+            },
+            "payloadType": [
+            {
+                "coding": [
+                {
+                    "system": "http://hl7.org/fhir/us/davinci-pdex-plan-net/CodeSystem/EndpointPayloadTypeCS",
+                    "code": "NA"
+                }
+                ]
+            }
+            ],
+            "payloadMimeType": [
+            "application/fhir+json",
+            "application/json+fhir",
+            "application/xml+fhir",
+            "application/fhir+xml"
+            ],
+            "address": "https://retailepicfhir.cvshealth.com/FhirProxy/api/fhir/R4/"
+        }
+        },
+        {
+        "resource": {
+            "resourceType": "Endpoint",
+            "id": "11b765c7-0c38-ec11-9155-001dd8b71f19",
+            "contained": [
+            {
+                "resourceType": "Organization",
+                "id": "yOpzEoGPTCMlCp2jUS9SlLjNwin+Px445zk5Ko5dW8Q=",
+                "name": "Care New England"
+            }
+            ],
+            "status": "active",
+            "connectionType": {
+            "system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+            "code": "hl7-fhir-rest"
+            },
+            "name": "Care New England",
+            "managingOrganization": {
+            "reference": "yOpzEoGPTCMlCp2jUS9SlLjNwin+Px445zk5Ko5dW8Q="
+            },
+            "period": {
+            "start": "2024-11-08T00:00:00-06:00"
+            },
+            "payloadType": [
+            {
+                "coding": [
+                {
+                    "system": "http://hl7.org/fhir/us/davinci-pdex-plan-net/CodeSystem/EndpointPayloadTypeCS",
+                    "code": "NA"
+                }
+                ]
+            }
+            ],
+            "payloadMimeType": [
+            "application/fhir+json",
+            "application/json+fhir",
+            "application/xml+fhir",
+            "application/fhir+xml"
+            ],
+            "address": "https://cnesp001.carene.org/FHIR/api/FHIR/R4/"
+        }
+        },
+        {
+        "resource": {
+            "resourceType": "Endpoint",
+            "id": "00b765c7-0c38-ec11-9155-001dd8b71f19",
+            "contained": [
+            {
+                "resourceType": "Organization",
+                "id": "RuOdv11cCv3ozgGArBjqRDLBJrN/lhR19nfbJSaF4Cg=",
+                "name": "Mass General Brigham"
+            }
+            ],
+            "status": "active",
+            "connectionType": {
+            "system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+            "code": "hl7-fhir-rest"
+            },
+            "name": "Mass General Brigham",
+            "managingOrganization": {
+            "reference": "RuOdv11cCv3ozgGArBjqRDLBJrN/lhR19nfbJSaF4Cg="
+            },
+            "period": {
+            "start": "2024-11-08T00:00:00-06:00"
+            },
+            "payloadType": [
+            {
+                "coding": [
+                {
+                    "system": "http://hl7.org/fhir/us/davinci-pdex-plan-net/CodeSystem/EndpointPayloadTypeCS",
+                    "code": "NA"
+                }
+                ]
+            }
+            ],
+            "payloadMimeType": [
+            "application/fhir+json",
+            "application/json+fhir",
+            "application/xml+fhir",
+            "application/fhir+xml"
+            ],
+            "address": "https://ws-interconnect-fhir.partners.org/Interconnect-FHIR-MU-PRD/api/FHIR/R4/"
+        }
+        },
+        {
+        "resource": {
+            "resourceType": "Endpoint",
+            "id": "cb58401b-7699-eb11-9145-001dd8b71f19",
+            "contained": [
+            {
+                "resourceType": "Organization",
+                "id": "AEW6mUvcQ6nUmtofXxtP+z+fICoQfoG4OP4PJaYeRNc=",
+                "name": "Lifespan"
+            }
+            ],
+            "status": "active",
+            "connectionType": {
+            "system": "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+            "code": "hl7-fhir-rest"
+            },
+            "name": "Lifespan",
+            "managingOrganization": {
+            "reference": "AEW6mUvcQ6nUmtofXxtP+z+fICoQfoG4OP4PJaYeRNc="
+            },
+            "period": {
+            "start": "2024-11-08T00:00:00-06:00"
+            },
+            "payloadType": [
+            {
+                "coding": [
+                {
+                    "system": "http://hl7.org/fhir/us/davinci-pdex-plan-net/CodeSystem/EndpointPayloadTypeCS",
+                    "code": "NA"
+                }
+                ]
+            }
+            ],
+            "payloadMimeType": [
+            "application/fhir+json",
+            "application/json+fhir",
+            "application/xml+fhir",
+            "application/fhir+xml"
+            ],
+            "address": "https://lsepprdsoap.lifespan.org/fhirproxy/api/FHIR/R4/"
+        }
+    }
+  ]
+}

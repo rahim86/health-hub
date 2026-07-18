@@ -4,5 +4,6 @@ declare module 'express-session' {
   interface SessionData {
     pendingMemberId?: string;
     pendingProvider?: string;
+    pendingFhirBaseUrl?: string;
   }
 }
