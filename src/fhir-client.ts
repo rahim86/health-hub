@@ -32,6 +32,13 @@ import {
 
 // ---- Core FHIR fetch ----
 
+// Endpoint directories (e.g. epic-endpoints-R4.json) are inconsistent about
+// a trailing slash on Endpoint.address. Strip it so base + resourcePath
+// concatenation never produces a double slash.
+export function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
 class FhirForbiddenError extends Error {
   constructor(url: string, body: string) {
     super(`FHIR 403 Forbidden: ${url}\n${body}`);
@@ -46,7 +53,7 @@ async function fhirFetch(
 ): Promise<FhirBundle> {
   const url = resourcePath.startsWith("http")
     ? resourcePath
-    : `${fhirBaseUrl}/${resourcePath}`;
+    : `${normalizeBaseUrl(fhirBaseUrl)}/${resourcePath}`;
 
   const response = await fetch(url, {
     headers: {
@@ -83,7 +90,7 @@ async function fetchAllPages(
   maxPages = 10
 ): Promise<FhirResource[]> {
   const resources: FhirResource[] = [];
-  let nextUrl: string | null = `${fhirBaseUrl}/${resourcePath}`;
+  let nextUrl: string | null = `${normalizeBaseUrl(fhirBaseUrl)}/${resourcePath}`;
   let page = 0;
 
   while (nextUrl && page < maxPages) {
