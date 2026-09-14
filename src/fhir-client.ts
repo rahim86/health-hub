@@ -231,8 +231,9 @@ export async function fetchProcedures(
 export interface PatientDataBundle {
   patient: FhirPatient;
   conditions: FhirCondition[];
-  labResults: FhirObservation[];
-  vitals: FhirObservation[];
+  // All Observations for the patient (labs, vitals, social-history, exam,
+  // imaging, etc.) — not just the laboratory/vital-signs categories.
+  observations: FhirObservation[];
   medications: FhirMedicationRequest[];
   encounters: FhirEncounter[];
   allergies: FhirAllergyIntolerance[];
@@ -257,8 +258,7 @@ export async function syncPatientData(
   const [
     patientResult,
     conditionsResult,
-    labsResult,
-    vitalsResult,
+    observationsResult,
     medsResult,
     encountersResult,
     allergiesResult,
@@ -267,8 +267,9 @@ export async function syncPatientData(
   ] = await Promise.allSettled([
     fetchPatient(fhirBaseUrl, patientId, accessToken),
     fetchConditions(fhirBaseUrl, patientId, accessToken),
-    fetchObservations(fhirBaseUrl, patientId, accessToken, "laboratory"),
-    fetchObservations(fhirBaseUrl, patientId, accessToken, "vital-signs"),
+    // No category filter: pulls every Observation (labs, vitals,
+    // social-history, exam, imaging, survey, etc.), not just labs/vitals.
+    fetchObservations(fhirBaseUrl, patientId, accessToken),
     fetchMedications(fhirBaseUrl, patientId, accessToken),
     fetchEncounters(fhirBaseUrl, patientId, accessToken),
     fetchAllergies(fhirBaseUrl, patientId, accessToken),
@@ -281,8 +282,7 @@ export async function syncPatientData(
   }
 
   const conditions    = settled(conditionsResult,     [], 'Condition');
-  const labResults    = settled(labsResult,           [], 'Observation(labs)');
-  const vitals        = settled(vitalsResult,         [], 'Observation(vitals)');
+  const observations  = settled(observationsResult,   [], 'Observation');
   const medications   = settled(medsResult,           [], 'MedicationRequest');
   const encounters    = settled(encountersResult,     [], 'Encounter');
   const allergies     = settled(allergiesResult,      [], 'AllergyIntolerance');
@@ -290,17 +290,16 @@ export async function syncPatientData(
   const procedures    = settled(proceduresResult,     [], 'Procedure');
 
   console.log(
-    `  Fetched: ${conditions.length} conditions, ${labResults.length} labs, ` +
-    `${vitals.length} vitals, ${medications.length} meds, ` +
-    `${encounters.length} encounters, ${allergies.length} allergies, ` +
-    `${immunizations.length} immunizations, ${procedures.length} procedures`
+    `  Fetched: ${conditions.length} conditions, ${observations.length} observations, ` +
+    `${medications.length} meds, ${encounters.length} encounters, ` +
+    `${allergies.length} allergies, ${immunizations.length} immunizations, ` +
+    `${procedures.length} procedures`
   );
 
   return {
     patient: patientResult.value,
     conditions,
-    labResults,
-    vitals,
+    observations,
     medications,
     encounters,
     allergies,

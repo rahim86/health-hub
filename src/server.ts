@@ -180,7 +180,7 @@ app.post("/api/sync/:memberId", async (req, res) => {
         conn.access_token
       );
       const allResources = [
-        ...data.conditions, ...data.labResults, ...data.vitals,
+        ...data.conditions, ...data.observations,
         ...data.medications, ...data.encounters, ...data.allergies,
         ...data.immunizations, ...data.procedures,
       ];

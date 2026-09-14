@@ -102,6 +102,30 @@ export async function syncResourcesToMedplum(
 
 // ---- Dashboard queries ----
 
+// Follows Bundle.link "next" pages so high-volume resource types (e.g.
+// Observation, which holds both clinical labs/vitals and any externally
+// synced data like Apple Health samples) aren't silently truncated at the
+// first page.
+async function searchAllPages(
+  resourceType: string,
+  params: Record<string, string>,
+  maxPages = 50
+): Promise<any[]> {
+  const resources: any[] = [];
+  let bundle: any = await medplum.search(resourceType as any, { ...params, _count: '200' } as any);
+  let page = 0;
+
+  while (bundle) {
+    resources.push(...(bundle.entry ?? []).map((e: any) => e.resource).filter(Boolean));
+    const nextUrl = bundle.link?.find((l: any) => l.relation === 'next')?.url;
+    page++;
+    if (!nextUrl || page >= maxPages) break;
+    bundle = await medplum.get(nextUrl);
+  }
+
+  return resources;
+}
+
 export async function getMedplumRecords(medplumPatientId: string, resourceType?: string) {
   const types = resourceType
     ? [resourceType]
@@ -109,9 +133,7 @@ export async function getMedplumRecords(medplumPatientId: string, resourceType?:
        'AllergyIntolerance', 'Immunization', 'Procedure'];
 
   const results = await Promise.allSettled(
-    types.map(t =>
-      medplum.search(t as any, { patient: medplumPatientId, _count: '200' } as any)
-    )
+    types.map(t => searchAllPages(t, { patient: medplumPatientId }))
   );
 
   return results.flatMap((r, i) => {
@@ -119,7 +141,7 @@ export async function getMedplumRecords(medplumPatientId: string, resourceType?:
       console.error(`  Medplum search failed for ${types[i]}:`, r.reason?.message ?? r.reason);
       return [];
     }
-    return (r.value.entry ?? []).map((e: any) => e.resource).filter(Boolean);
+    return r.value;
   });
 }
 

@@ -115,7 +115,7 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
   });
 
   const allResources = [
-    ...data.conditions, ...data.labResults, ...data.vitals,
+    ...data.conditions, ...data.observations,
     ...data.medications, ...data.encounters, ...data.allergies,
     ...data.immunizations, ...data.procedures,
   ];
