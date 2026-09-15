@@ -347,8 +347,13 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     .records-table tr:last-child td { border-bottom: none; }
     .records-table tr:hover td { background: #faf9f7; }
     .rdate { font-size: 11px; color: #888780; white-space: nowrap; }
+    .rtime { font-size: 12px; color: #888780; white-space: nowrap; width: 70px; }
     .rstatus { font-size: 11px; color: #888780; }
     .loading-text { font-size: 13px; color: #888780; padding: 8px 0; }
+    .obs-day { margin-bottom: 14px; }
+    .obs-day-header { font-size: 12px; font-weight: 600; color: #5f5e5a;
+                       padding: 4px 10px; }
+    .obs-day-header .badge { margin-left: 6px; }
     .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px;
              background: #eeedfe; color: #534ab7; margin-left: 8px; vertical-align: middle; }
     .ehr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
@@ -435,7 +440,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     const TABS = [
       { label: 'Conditions',   type: 'Condition',          key: 'conditions'   },
       { label: 'Medications',  type: 'MedicationRequest',  key: 'medications'  },
-      { label: 'Labs',         type: 'Observation',        key: 'observations' },
+      { label: 'Observations', type: 'Observation',        key: 'observations' },
       { label: 'Encounters',   type: 'Encounter',          key: 'encounters'   },
       { label: 'Allergies',    type: 'AllergyIntolerance', key: 'allergies'    },
       { label: 'Vaccines',     type: 'Immunization',       key: 'immunizations'},
@@ -557,6 +562,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 
     function renderRecords(records, resourceType, patientId) {
       if (!records.length) return '<div class="loading-text">No ' + resourceType + ' records found.</div>';
+      if (resourceType === 'Observation') return renderObservations(records, patientId);
       const rows = records.map(r =>
         '<tr id="row-' + r.id + '"><td>' + resourceLabel(r) + '</td>'
         + '<td class="rstatus">' + (resourceStatus(r) || '') + '</td>'
@@ -567,6 +573,50 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
         + '<thead><tr><th>Description</th><th>Status</th><th>Date</th><th></th></tr></thead>'
         + '<tbody>' + rows + '</tbody>'
         + '</table>';
+    }
+
+    // Observations mix one-off clinical labs with high-volume time series
+    // (e.g. Apple Health heart rate/steps synced straight into Medplum), so
+    // instead of one flat table they're grouped by day, newest first, with
+    // same-day entries sorted by time so multiple-per-hour readings are
+    // still readable.
+    function renderObservations(records, patientId) {
+      const groups = {};
+      const order = [];
+      records.forEach(r => {
+        const raw = r.effectiveDateTime || r.effectivePeriod?.start || r.issued || '';
+        const d = raw ? new Date(raw) : null;
+        const valid = d && !isNaN(d.getTime());
+        const isoDate = valid ? d.toISOString().slice(0, 10) : 'unknown';
+        const time = valid && raw.includes('T')
+          ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+          : '';
+        const ts = valid ? d.getTime() : -1;
+        if (!groups[isoDate]) { groups[isoDate] = []; order.push(isoDate); }
+        groups[isoDate].push({ r, time, ts });
+      });
+
+      order.sort((a, b) => a === 'unknown' ? 1 : b === 'unknown' ? -1 : b.localeCompare(a));
+
+      return order.map(isoDate => {
+        const entries = groups[isoDate].slice().sort((a, b) => b.ts - a.ts);
+        const label = isoDate === 'unknown'
+          ? 'Unknown date'
+          : new Date(isoDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+        const rows = entries.map(({ r, time }) =>
+          '<tr id="row-' + r.id + '">'
+          + '<td class="rtime">' + (time || '—') + '</td>'
+          + '<td>' + resourceLabel(r) + '</td>'
+          + '<td><button class="btn btn-sm btn-danger" onclick="deleteRecord(\\'' + patientId + '\\',\\'Observation\\',\\'' + r.id + '\\',this)">Delete</button></td>'
+          + '</tr>'
+        ).join('');
+
+        return '<div class="obs-day">'
+          + '<div class="obs-day-header">' + label + '<span class="badge">' + entries.length + '</span></div>'
+          + '<table class="records-table"><tbody>' + rows + '</tbody></table>'
+          + '</div>';
+      }).join('');
     }
 
     async function deleteRecord(patientId, resourceType, resourceId, btn) {
