@@ -376,6 +376,7 @@ export interface PatientDataBundle {
   allergies: FhirAllergyIntolerance[];
   immunizations: FhirImmunization[];
   procedures: FhirProcedure[];
+  diagnosticReports: FhirDiagnosticReport[];
   fetchedAt: string;
 }
 
@@ -443,6 +444,7 @@ export async function syncPatientData(
     allergies,
     immunizations,
     procedures,
+    diagnosticReports,
     fetchedAt: new Date().toISOString(),
   };
 }

@@ -134,7 +134,7 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
   const allResources = [
     ...data.conditions, ...data.observations,
     ...data.medications, ...data.encounters, ...data.allergies,
-    ...data.immunizations, ...data.procedures,
+    ...data.immunizations, ...data.procedures, ...data.diagnosticReports,
   ];
 
   // Write every resource into Medplum, tagged with the source EHR.
