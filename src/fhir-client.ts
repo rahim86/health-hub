@@ -27,7 +27,9 @@ import {
   FhirAllergyIntolerance,
   FhirImmunization,
   FhirProcedure,
+  FhirDiagnosticReport,
   FhirPatient,
+  FhirCodeableConcept,
 } from "./types";
 
 // ---- Core FHIR fetch ----
@@ -56,12 +58,32 @@ async function fhirFetch(
     ? resourcePath
     : `${normalizeBaseUrl(fhirBaseUrl)}/${resourcePath}`;
 
+  const requestHeaders = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/fhir+json",
+  };
+
+  console.log(`\n [FHIR REQUEST]`);
+  console.log(`  GET ${url}`);
+  console.log(`  Headers: ${JSON.stringify(requestHeaders)}`);
+
   const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/fhir+json",
     },
   });
+  
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    responseHeaders[key] = value;
+  });
+
+  console.log(`  [FHIR RESPONSE]`);
+  console.log(`  Status: ${response.status} ${response.statusText}`);
+  console.log(`  Headers: ${JSON.stringify(responseHeaders)}`);
+  
+  const bodyText = await response.text();
 
   if (response.status === 401) {
     throw new Error("FHIR_AUTH_EXPIRED");
@@ -77,7 +99,19 @@ async function fhirFetch(
     throw new Error(`FHIR request failed (${response.status}): ${body}`);
   }
 
-  return response.json();
+  let json: FhirBundle;
+  try {
+    json = JSON.parse(bodyText);
+  } catch (err) {
+    console.error(`Failed to parse FHIR response as JSON: ${err}`);
+    throw new Error(`Failed to parse FHIR response as JSON: ${err}`);
+  }
+
+  const count = json.total ?? (json.entry ? json.entry.length : 0);
+  console.log(` Body: ${JSON.stringify(json, null, 2)}`);
+  console.log(`  FHIR response contains ${count} resources`);
+
+  return json;
 }
 
 // ---- Paginated fetch ----
@@ -151,19 +185,56 @@ export async function fetchConditions(
   ) as Promise<FhirCondition[]>;
 }
 
+const OBSERVATION_CATEGORIES = [
+  "laboratory", 
+  "vital-signs", 
+  "social-history",
+  "exam",
+  "imaging",
+  "survey",
+  "therapy",
+  "activity",
+  "procedure",
+  "other",
+  "questionnaire",
+  "document",
+  "medication",
+] as const;
+
 export async function fetchObservations(
   fhirBaseUrl: string,
   patientId: string,
   accessToken: string,
-  category?: "laboratory" | "vital-signs" | "social-history"
 ): Promise<FhirObservation[]> {
-  let path = `Observation?patient=${patientId}&_count=100&_sort=-date`;
-  if (category) {
-    path += `&category=${category}`;
+  const results = await Promise.allSettled (
+    OBSERVATION_CATEGORIES.map((category) =>
+      fetchAllPages(
+        fhirBaseUrl,
+        `Observation?patient=${patientId}&category=${category}&_count=100`,
+        accessToken
+      ) as Promise<FhirObservation[]>
+    )
+  );
+  
+  const all: FhirObservation[] = [];
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'fulfilled') {
+      console.log(' [FHIR] Observation category', OBSERVATION_CATEGORIES[index], 'fetched', result.value.length, 'resources');
+      all.push(...result.value);
+    } else {
+      console.warn(`  [FHIR skip] Observation category "${OBSERVATION_CATEGORIES[index]}": ${result.reason?.message ?? result.reason}`);
+    }
   }
-  return fetchAllPages(fhirBaseUrl, path, accessToken) as Promise<
-    FhirObservation[]
-  >;
+
+  // Deduplicate observations by resource ID
+  const uniqueObservations = new Map<string, FhirObservation>();
+  for (const obs of all) {
+    if (obs.id) {
+      uniqueObservations.set(obs.id, obs);
+    }
+  }
+
+  return Array.from(uniqueObservations.values());
 }
 
 export async function fetchMedications(
@@ -171,11 +242,64 @@ export async function fetchMedications(
   patientId: string,
   accessToken: string
 ): Promise<FhirMedicationRequest[]> {
-  return fetchAllPages(
-    fhirBaseUrl,
-    `MedicationRequest?patient=${patientId}&_count=100`,
-    accessToken
-  ) as Promise<FhirMedicationRequest[]>;
+ 
+  const resources: FhirResource[] = [];
+  const medicationMap =  new Map<String, FhirCodeableConcept>();
+
+  let nextUrl: string | null = 
+    `${normalizeBaseUrl(fhirBaseUrl)}/MedicationRequest?patient=${patientId}&_count=100&_include=MedicationRequest:medication&_include=MedicationRequest:medication`;
+
+  let page = 0;
+
+  while (nextUrl && page < 10) {
+    let bundle: FhirBundle;
+    try {
+      bundle = await fhirFetch(fhirBaseUrl, nextUrl, accessToken);
+    } catch (err) {
+      if (err instanceof FhirForbiddenError) {
+        console.warn(`  [FHIR 403] Skipping MedicationRequest — not authorized by this EHR/patient scope`);
+        return resources as FhirMedicationRequest[];
+      }
+      throw err;
+    }
+
+    if (bundle.entry) {
+      for (const entry of bundle.entry) {
+        const res = entry.resource as any;
+
+        if(!res)continue;
+        if(res.resourceType === "Medication") {
+
+          const concept: FhirCodeableConcept = res.code ?? {};
+
+          if (res.id) {
+            medicationMap.set(`Medication/${res.id}`, concept);
+            medicationMap.set(res.id, concept);
+          }
+        } else if(res.resourceType === "MedicationRequest") {
+            resources.push(res);
+        }
+      }
+    }
+
+    nextUrl = bundle.link?.find((l) => l.relation === "next")?.url || null;
+    page++;
+  }
+
+  return resources.map((medReq) => {
+    const med = medReq as any;
+
+    //Already has a usable inline concept - nothing to do
+    if (med.medicationCodeableConcept?.text || med.medicationCodeableConcept?.coding?.length) {
+      return med as FhirMedicationRequest;
+    }
+    // Otherwise, look up the medication and use its concept
+    const medConcept = medicationMap.get(med.medicationReference?.reference ?? '');
+    if (medConcept) {
+      med.medicationCodeableConcept = medConcept;
+    }
+    return med as FhirMedicationRequest;
+  });
 }
 
 export async function fetchEncounters(
@@ -226,6 +350,19 @@ export async function fetchProcedures(
   ) as Promise<FhirProcedure[]>;
 }
 
+
+export async function fetchDiagnosticReports(
+  fhirBaseUrl: string,
+  patientId: string,
+  accessToken: string
+): Promise<FhirDiagnosticReport[]> {
+  return fetchAllPages(
+    fhirBaseUrl,
+    `DiagnosticReport?patient=${patientId}&_count=100`,
+    accessToken
+  ) as Promise<FhirDiagnosticReport[]>;
+}
+
 // ---- Full sync: pull everything for a patient ----
 
 export interface PatientDataBundle {
@@ -264,17 +401,17 @@ export async function syncPatientData(
     allergiesResult,
     immunizationsResult,
     proceduresResult,
+    diagnosticReportsResult,
   ] = await Promise.allSettled([
     fetchPatient(fhirBaseUrl, patientId, accessToken),
     fetchConditions(fhirBaseUrl, patientId, accessToken),
-    // No category filter: pulls every Observation (labs, vitals,
-    // social-history, exam, imaging, survey, etc.), not just labs/vitals.
     fetchObservations(fhirBaseUrl, patientId, accessToken),
     fetchMedications(fhirBaseUrl, patientId, accessToken),
     fetchEncounters(fhirBaseUrl, patientId, accessToken),
     fetchAllergies(fhirBaseUrl, patientId, accessToken),
     fetchImmunizations(fhirBaseUrl, patientId, accessToken),
     fetchProcedures(fhirBaseUrl, patientId, accessToken),
+    fetchDiagnosticReports(fhirBaseUrl, patientId, accessToken),
   ]);
 
   if (patientResult.status === 'rejected') {
@@ -288,12 +425,13 @@ export async function syncPatientData(
   const allergies     = settled(allergiesResult,      [], 'AllergyIntolerance');
   const immunizations = settled(immunizationsResult,  [], 'Immunization');
   const procedures    = settled(proceduresResult,     [], 'Procedure');
+  const diagnosticReports = settled(diagnosticReportsResult, [], 'DiagnosticReport');
 
   console.log(
     `  Fetched: ${conditions.length} conditions, ${observations.length} observations, ` +
     `${medications.length} meds, ${encounters.length} encounters, ` +
     `${allergies.length} allergies, ${immunizations.length} immunizations, ` +
-    `${procedures.length} procedures`
+    `${procedures.length} procedures, ${diagnosticReports.length} diagnostic reports`
   );
 
   return {

@@ -65,6 +65,7 @@ export type FhirResource =
   | FhirAllergyIntolerance
   | FhirImmunization
   | FhirProcedure
+  | FhirDiagnosticReport
   | GenericFhirResource;
 
 export interface GenericFhirResource {
@@ -103,7 +104,11 @@ export interface FhirCondition {
   code?: FhirCodeableConcept;
   clinicalStatus?: FhirCodeableConcept;
   verificationStatus?: FhirCodeableConcept;
+  severity?: FhirCodeableConcept;
+  bodySite?: FhirCodeableConcept[];
   onsetDateTime?: string;
+  recordedDate?: string;
+  note?: { text?: string }[];
   subject?: FhirReference;
 }
 
@@ -111,11 +116,34 @@ export interface FhirObservation {
   resourceType: "Observation";
   id?: string;
   code?: FhirCodeableConcept;
-  valueQuantity?: { value?: number; unit?: string; system?: string; code?: string };
-  valueString?: string;
-  effectiveDateTime?: string;
   status?: string;
   category?: FhirCodeableConcept[];
+  effectiveDateTime?: string;
+  effectivePeriod?: { start?: string; end?: string };
+  issued?: string;
+  valueQuantity?: { value?: number; unit?: string; system?: string; code?: string };
+  valueString?: string;
+  valueBoolean?: boolean;
+  valueInteger?: number;
+  valueRange?: { low?: { value?: number; unit?: string }; high?: { value?: number; unit?: string } };
+  valueRatio?: { numerator?: { value?: number; unit?: string }; denominator?: { value?: number; unit?: string } };
+  valueCodeableConcept?: FhirCodeableConcept;
+  component?: {
+    code?: FhirCodeableConcept;
+    valueQuantity?: { value?: number; unit?: string; system?: string; code?: string };
+    valueString?: string;
+    valueBoolean?: boolean;
+    valueInteger?: number;
+    valueRange?: { low?: { value?: number; unit?: string }; high?: { value?: number; unit?: string } };
+    valueRatio?: { numerator?: { value?: number; unit?: string }; denominator?: { value?: number; unit?: string } };
+    valueCodeableConcept?: FhirCodeableConcept;
+  }[];
+  interpretation?: FhirCodeableConcept[];
+  referenceRange?: {
+    low?: { value?: number; unit?: string; system?: string; code?: string };
+    high?: { value?: number; unit?: string; system?: string; code?: string };
+  }[];
+  note?: { text?: string }[];
   subject?: FhirReference;
 }
 
@@ -126,10 +154,19 @@ export interface FhirMedicationRequest {
   medicationReference?: FhirReference;
   status?: string;
   authoredOn?: string;
+  encounter?: FhirReference;
+  requester?: { agent?: FhirReference; onBehalfOf?: FhirReference };
   dosageInstruction?: { text?: string }[];
+  dispenseRequest?: {
+    validityPeriod?: { start?: string; end?: string };
+    numberOfRepeatsAllowed?: number;
+    quantity?: { value?: number; unit?: string; system?: string; code?: string };
+    expectedSupplyDuration?: { value?: number; unit?: string; system?: string; code?: string };
+  };
+  note?: { text?: string }[];
   subject?: FhirReference;
 }
-
+ 
 export interface FhirEncounter {
   resourceType: "Encounter";
   id?: string;
@@ -137,7 +174,15 @@ export interface FhirEncounter {
   period?: { start?: string; end?: string };
   status?: string;
   class?: FhirCoding;
+  reasonCode?: FhirCodeableConcept[];
+  hospitalization?: {
+    admitSource?: FhirCodeableConcept;
+    dischargeDisposition?: FhirCodeableConcept;
+  };
+  participant?: { type?: FhirCodeableConcept[]; individual?: FhirReference }[];
+  location?: { location?: FhirReference; status?: string }[];
   subject?: FhirReference;
+  _medications?: Array<{ name: string; status?: string; dosage?: string }>
 }
 
 export interface FhirAllergyIntolerance {
@@ -148,6 +193,14 @@ export interface FhirAllergyIntolerance {
   type?: string;
   category?: string[];
   criticality?: string;
+  onsetDateTime?: string;
+  reaction?: {
+    substance?: FhirCodeableConcept;
+    manifestation?: FhirCodeableConcept[];
+    description?: string;
+    severity?: string;
+  }[];
+  note?: { text?: string }[];
   patient?: FhirReference;
 }
 
@@ -157,6 +210,12 @@ export interface FhirImmunization {
   vaccineCode?: FhirCodeableConcept;
   occurrenceDateTime?: string;
   status?: string;
+  lotNumber?: string;
+  manufacturer?: FhirReference;
+  site?: FhirCodeableConcept;
+  route?: FhirCodeableConcept;
+  doseQuantity?: { value?: number; unit?: string; system?: string; code?: string };
+  note?: { text?: string }[];
   patient?: FhirReference;
 }
 
@@ -167,6 +226,28 @@ export interface FhirProcedure {
   performedDateTime?: string;
   performedPeriod?: { start?: string; end?: string };
   status?: string;
+  reasonCode?: FhirCodeableConcept[];
+  bodySite?: FhirCodeableConcept[];
+  outcome?: FhirCodeableConcept;
+  performer?: { actor?: FhirReference; 
+  role?: FhirCodeableConcept }[];
+  note?: { text?: string }[];
   subject?: FhirReference;
 }
 
+export interface FhirDiagnosticReport {
+  resourceType: "DiagnosticReport";
+  id?: string;
+  code?: FhirCodeableConcept;
+  status?: string;
+  category?: FhirCodeableConcept[];
+  effectiveDateTime?: string;
+  effectivePeriod?: { start?: string; end?: string };
+  issued?: string;
+  performer?: FhirReference[];
+  result?: FhirReference[];
+  conclusion?: string;
+  note?: { text?: string }[];
+  presentedForm?: { contentType?: string; data?: string; title?: string }[];
+  subject?: FhirReference;
+}

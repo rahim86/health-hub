@@ -126,11 +126,54 @@ async function searchAllPages(
   return resources;
 }
 
+const OBSERVATION_CATEGORIES = [
+  'laboratory', 
+  'vital-signs',
+  'social-history',
+  'exam',
+  'imaging',
+  'survey',
+  'therapy',
+  'activity',
+  'procedure',
+  'device',
+  'other'
+];
+
 export async function getMedplumRecords(medplumPatientId: string, resourceType?: string) {
+
+  if(resourceType === 'Observation') {
+    const results = await Promise.allSettled(
+      OBSERVATION_CATEGORIES.map((category) =>
+        searchAllPages('Observation', { patient: medplumPatientId, category: category, _sort: '-date' })
+      )
+    );
+
+    const all: any[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled') {
+        all.push(...r.value);
+      } else {
+        console.error(`  Medplum search failed for Observation category ${OBSERVATION_CATEGORIES[i]}:`, r.reason?.message ?? r.reason);
+      }
+    }
+   
+    // Deduplicate observations by their unique identifier (code + date + value)
+    const uniqueObservationsMap = new Map<string, any>();
+    return all.filter((obs) => {
+      if (!obs.id || uniqueObservationsMap.has(obs.id)) {
+        return false;
+      }
+      uniqueObservationsMap.set(obs.id, obs);
+      return true;
+    });
+  }
+
   const types = resourceType
     ? [resourceType]
     : ['Condition', 'Observation', 'MedicationRequest', 'Encounter',
-       'AllergyIntolerance', 'Immunization', 'Procedure'];
+       'AllergyIntolerance', 'Immunization', 'Procedure', 'DiagnosticReport'];
 
   const results = await Promise.allSettled(
     types.map(t => searchAllPages(t, { patient: medplumPatientId }))
@@ -164,7 +207,7 @@ export async function deleteMedplumResource(resourceType: string, id: string): P
 }
 
 export async function getMedplumSummary(medplumPatientId: string) {
-  const [conditions, medications, observations, encounters, allergies, immunizations] =
+  const [conditions, medications, observations, encounters, allergies, immunizations, procedures, diagnosticReports] =
     await Promise.all([
       medplum.search('Condition' as any, { patient: medplumPatientId, _summary: 'count' } as any),
       medplum.search('MedicationRequest' as any, { patient: medplumPatientId, _summary: 'count' } as any),
@@ -172,6 +215,8 @@ export async function getMedplumSummary(medplumPatientId: string) {
       medplum.search('Encounter' as any, { patient: medplumPatientId, _summary: 'count' } as any),
       medplum.search('AllergyIntolerance' as any, { patient: medplumPatientId, _summary: 'count' } as any),
       medplum.search('Immunization' as any, { patient: medplumPatientId, _summary: 'count' } as any),
+      medplum.search('Procedure' as any, { patient: medplumPatientId, _summary: 'count' } as any),
+      medplum.search('DiagnosticReport' as any, { patient: medplumPatientId, _summary: 'count' } as any),
     ]);
 
   return {
@@ -181,6 +226,8 @@ export async function getMedplumSummary(medplumPatientId: string) {
     encounters: encounters.total ?? 0,
     allergies: allergies.total ?? 0,
     immunizations: immunizations.total ?? 0,
+    procedures: procedures.total ?? 0,
+    diagnosticReports: diagnosticReports.total ?? 0,
     last_synced: new Date().toISOString(),
   };
 }
