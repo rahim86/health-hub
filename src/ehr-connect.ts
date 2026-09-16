@@ -95,6 +95,23 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
   // endpoint from the directory rather than provider.fhir_base_url.
   const fhirBaseUrl = req.session.pendingFhirBaseUrl || provider.fhir_base_url;
 
+
+  // Log the full Epic token response
+  console.log (`\n [${provider.name}] OAuth callback received`);
+  console.log (`\n [${provider.name}] EHR patient ID: ${ehrPatientId}`);
+  console.log (`\n [${provider.name}] FHIR Base URL: ${fhirBaseUrl}`);
+  console.log (`\n [${provider.name}] Access Token: : `, JSON.stringify({
+    token_type: token.token_type,
+    access_token: token.access_token,
+    refresh_token: token.refresh_token,
+    expires_in: token.expires_in,
+    scope: token.scope,
+    has_access_token: !!token.access_token,
+    has_refresh_token: !!token.refresh_token,
+    id_token: token.id_token,
+  }, null, 2));
+
+
   // Fetch the patient's demographics + all clinical resources from the EHR
   // before touching Medplum, so a brand-new patient is created with their
   // real name/DOB/gender rather than a placeholder.
@@ -117,7 +134,7 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
   const allResources = [
     ...data.conditions, ...data.observations,
     ...data.medications, ...data.encounters, ...data.allergies,
-    ...data.immunizations, ...data.procedures,
+    ...data.immunizations, ...data.procedures, ...data.diagnosticReports,
   ];
 
   // Write every resource into Medplum, tagged with the source EHR.

@@ -182,7 +182,7 @@ app.post("/api/sync/:memberId", async (req, res) => {
       const allResources = [
         ...data.conditions, ...data.observations,
         ...data.medications, ...data.encounters, ...data.allergies,
-        ...data.immunizations, ...data.procedures,
+        ...data.immunizations, ...data.procedures, ...data.diagnosticReports,
       ];
       totalRecords += await syncResourcesToMedplum(
         allResources,
@@ -444,6 +444,8 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       { label: 'Encounters',   type: 'Encounter',          key: 'encounters'   },
       { label: 'Allergies',    type: 'AllergyIntolerance', key: 'allergies'    },
       { label: 'Vaccines',     type: 'Immunization',       key: 'immunizations'},
+      { label: 'Procedures',   type: 'Procedure',          key: 'procedures'   },
+      { label: 'Diagnostics',  type: 'DiagnosticReport',   key: 'diagnosticReports' },
     ];
 
     async function load() {
