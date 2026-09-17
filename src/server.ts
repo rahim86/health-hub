@@ -351,8 +351,8 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     .rstatus { font-size: 11px; color: #888780; }
     .loading-text { font-size: 13px; color: #888780; padding: 8px 0; }
     .obs-day { margin-bottom: 14px; }
-    .obs-day-header { font-size: 12px; font-weight: 600; color: #5f5e5a;
-                       padding: 4px 10px; }
+    .obs-day-header { display: flex; align-items: center; font-size: 12px; font-weight: 600;
+                       color: #5f5e5a; padding: 4px 10px; }
     .obs-day-header .badge { margin-left: 6px; }
     .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px;
              background: #eeedfe; color: #534ab7; margin-left: 8px; vertical-align: middle; }
@@ -577,6 +577,14 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
         + '</table>';
     }
 
+    // Shared by grouping (render) and bulk delete, so both agree on which
+    // day an observation belongs to.
+    function observationDateKey(r) {
+      const raw = r.effectiveDateTime || r.effectivePeriod?.start || r.issued || '';
+      const d = raw ? new Date(raw) : null;
+      return (d && !isNaN(d.getTime())) ? d.toISOString().slice(0, 10) : 'unknown';
+    }
+
     // Observations mix one-off clinical labs with high-volume time series
     // (e.g. Apple Health heart rate/steps synced straight into Medplum), so
     // instead of one flat table they're grouped by day, newest first, with
@@ -589,7 +597,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
         const raw = r.effectiveDateTime || r.effectivePeriod?.start || r.issued || '';
         const d = raw ? new Date(raw) : null;
         const valid = d && !isNaN(d.getTime());
-        const isoDate = valid ? d.toISOString().slice(0, 10) : 'unknown';
+        const isoDate = observationDateKey(r);
         const time = valid && raw.includes('T')
           ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
           : '';
@@ -614,11 +622,62 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
           + '</tr>'
         ).join('');
 
-        return '<div class="obs-day">'
-          + '<div class="obs-day-header">' + label + '<span class="badge">' + entries.length + '</span></div>'
+        return '<div class="obs-day" id="obs-day-' + patientId + '-' + isoDate + '">'
+          + '<div class="obs-day-header">' + label + '<span class="badge">' + entries.length + '</span>'
+          + '<button class="btn btn-sm btn-danger" style="margin-left:auto" '
+          + 'onclick="deleteObservationDay(\\'' + patientId + '\\',\\'' + isoDate + '\\',this)">Delete day</button>'
+          + '</div>'
           + '<table class="records-table"><tbody>' + rows + '</tbody></table>'
           + '</div>';
       }).join('');
+    }
+
+    // Bulk-deletes every Observation grouped under one day. Reuses the
+    // single-record delete endpoint per ID (which also disconnects the
+    // source EHR connection when applicable) rather than adding a separate
+    // bulk API, since day-sized batches are small enough to fan out.
+    async function deleteObservationDay(patientId, isoDate, btn) {
+      const cacheKey = patientId + '|Observation';
+      const records = recordsCache[cacheKey] || [];
+      const ids = records.filter(r => observationDateKey(r) === isoDate).map(r => r.id);
+      if (!ids.length) return;
+
+      const dateLabel = isoDate === 'unknown' ? 'this unknown-date group' : isoDate;
+      if (!confirm('Delete all ' + ids.length + ' observation(s) from ' + dateLabel + '? This cannot be undone.')) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
+
+      const outcomes = await Promise.all(ids.map(async id => {
+        try {
+          const res = await fetch(
+            '/api/patients/' + encodeURIComponent(patientId) + '/records/Observation/' + encodeURIComponent(id),
+            { method: 'DELETE' }
+          );
+          const data = await res.json().catch(() => ({}));
+          return { id, ok: res.ok, disconnectedProvider: data.disconnectedProvider };
+        } catch (e) {
+          return { id, ok: false };
+        }
+      }));
+
+      const deletedIds = new Set(outcomes.filter(o => o.ok).map(o => o.id));
+      const failedCount = ids.length - deletedIds.size;
+
+      recordsCache[cacheKey] = records.filter(r => !deletedIds.has(r.id));
+
+      const panel = document.getElementById('records-' + patientId);
+      if (panel) panel.innerHTML = renderRecords(recordsCache[cacheKey], 'Observation', patientId);
+
+      if (failedCount) {
+        alert(failedCount + ' of ' + ids.length + ' observation(s) could not be deleted.');
+      }
+
+      const disconnected = [...new Set(outcomes.map(o => o.disconnectedProvider).filter(Boolean))];
+      if (disconnected.length) {
+        alert('Disconnected from: ' + disconnected.join(', ') + '.');
+        load();
+      }
     }
 
     async function deleteRecord(patientId, resourceType, resourceId, btn) {
