@@ -126,50 +126,13 @@ async function searchAllPages(
   return resources;
 }
 
-const OBSERVATION_CATEGORIES = [
-  'laboratory', 
-  'vital-signs',
-  'social-history',
-  'exam',
-  'imaging',
-  'survey',
-  'therapy',
-  'activity',
-  'procedure',
-  'device',
-  'other'
-];
-
 export async function getMedplumRecords(medplumPatientId: string, resourceType?: string) {
-
-  if(resourceType === 'Observation') {
-    const results = await Promise.allSettled(
-      OBSERVATION_CATEGORIES.map((category) =>
-        searchAllPages('Observation', { patient: medplumPatientId, category: category, _sort: '-date' })
-      )
-    );
-
-    const all: any[] = [];
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.status === 'fulfilled') {
-        all.push(...r.value);
-      } else {
-        console.error(`  Medplum search failed for Observation category ${OBSERVATION_CATEGORIES[i]}:`, r.reason?.message ?? r.reason);
-      }
-    }
-   
-    // Deduplicate observations by their unique identifier (code + date + value)
-    const uniqueObservationsMap = new Map<string, any>();
-    return all.filter((obs) => {
-      if (!obs.id || uniqueObservationsMap.has(obs.id)) {
-        return false;
-      }
-      uniqueObservationsMap.set(obs.id, obs);
-      return true;
-    });
-  }
-
+  // Observation is fetched with no `category` filter: category-scoped
+  // queries silently drop any Observation whose category is missing or
+  // doesn't match one of the queried codes, which was hiding most
+  // externally-synced data (e.g. Apple Health readings not tagged with a
+  // recognized FHIR category) — only "activity"-category entries like
+  // step count/distance/calories were ever coming back.
   const types = resourceType
     ? [resourceType]
     : ['Condition', 'Observation', 'MedicationRequest', 'Encounter',
