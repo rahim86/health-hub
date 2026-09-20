@@ -350,10 +350,16 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     .rtime { font-size: 12px; color: #888780; white-space: nowrap; width: 70px; }
     .rstatus { font-size: 11px; color: #888780; }
     .loading-text { font-size: 13px; color: #888780; padding: 8px 0; }
-    .obs-day { margin-bottom: 14px; }
+    .obs-day { margin-bottom: 6px; }
     .obs-day-header { display: flex; align-items: center; font-size: 12px; font-weight: 600;
-                       color: #5f5e5a; padding: 4px 10px; }
+                       color: #5f5e5a; padding: 8px 10px; cursor: pointer; border-radius: 6px; }
+    .obs-day-header:hover { background: #faf9f7; }
     .obs-day-header .badge { margin-left: 6px; }
+    .obs-day-caret { display: inline-block; font-size: 10px; width: 14px; color: #888780;
+                      transition: transform 0.15s; }
+    .obs-day.open .obs-day-caret { transform: rotate(90deg); }
+    .obs-day-table { display: none; }
+    .obs-day.open .obs-day-table { display: table; }
     .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px;
              background: #eeedfe; color: #534ab7; margin-left: 8px; vertical-align: middle; }
     .ehr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
@@ -622,14 +628,22 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
           + '</tr>'
         ).join('');
 
-        return '<div class="obs-day" id="obs-day-' + patientId + '-' + isoDate + '">'
-          + '<div class="obs-day-header">' + label + '<span class="badge">' + entries.length + '</span>'
+        const dayId = 'obs-day-' + patientId + '-' + isoDate;
+        return '<div class="obs-day" id="' + dayId + '">'
+          + '<div class="obs-day-header" onclick="toggleObsDay(\\'' + dayId + '\\')">'
+          + '<span class="obs-day-caret">&#9656;</span>'
+          + label + '<span class="badge">' + entries.length + '</span>'
           + '<button class="btn btn-sm btn-danger" style="margin-left:auto" '
-          + 'onclick="deleteObservationDay(\\'' + patientId + '\\',\\'' + isoDate + '\\',this)">Delete day</button>'
+          + 'onclick="event.stopPropagation();deleteObservationDay(\\'' + patientId + '\\',\\'' + isoDate + '\\',this)">Delete day</button>'
           + '</div>'
-          + '<table class="records-table"><tbody>' + rows + '</tbody></table>'
+          + '<table class="records-table obs-day-table"><tbody>' + rows + '</tbody></table>'
           + '</div>';
       }).join('');
+    }
+
+    function toggleObsDay(dayId) {
+      const day = document.getElementById(dayId);
+      if (day) day.classList.toggle('open');
     }
 
     // Bulk-deletes every Observation grouped under one day. Reuses the
