@@ -656,9 +656,6 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       const ids = records.filter(r => observationDateKey(r) === isoDate).map(r => r.id);
       if (!ids.length) return;
 
-      const dateLabel = isoDate === 'unknown' ? 'this unknown-date group' : isoDate;
-      if (!confirm('Delete all ' + ids.length + ' observation(s) from ' + dateLabel + '? This cannot be undone.')) return;
-
       btn.disabled = true;
       btn.textContent = 'Deleting…';
 
@@ -695,7 +692,6 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     }
 
     async function deleteRecord(patientId, resourceType, resourceId, btn) {
-      if (!confirm('Delete this record from the FHIR server? This will also disconnect its source EHR connection.')) return;
       btn.disabled = true;
       btn.textContent = 'Deleting…';
       try {
@@ -785,9 +781,6 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     }
 
     async function deletePatient(patientId, btn) {
-      const patient = allPatients.find(p => p.id === patientId);
-      const name = patient ? patientName(patient) : 'this patient';
-      if (!confirm('Permanently delete ' + name + ' and ALL their records, connections, and history? This cannot be undone.')) return;
       btn.disabled = true;
       btn.textContent = 'Deleting…';
       try {
